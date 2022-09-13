@@ -1,0 +1,12 @@
+name: Release-Notes-Preview
+
+on:
+  pull_request:
+  issue_comment:
+    types: [ edited ]
+
+jobs:
+  call-workflow-preview:
+    uses: splunk/addonfactory-github-workflows/.github/workflows/reusable-release-notes.yaml@v1.2
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
