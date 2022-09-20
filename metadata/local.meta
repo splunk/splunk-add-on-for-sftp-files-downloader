@@ -1,0 +1,67 @@
+[props/sftp_source]
+owner = admin
+version = 9.0.0
+modtime = 1661364424.596109000
+
+[passwords/credential%3A__REST_CREDENTIAL__%23TA-sftp-file-downloader-AOB%23data%2Finputs%2Ftest%3Aasdf%60%60splunk_cred_sep%60%601%3A]
+owner = admin
+version = 9.0.0
+modtime = 1661364496.292308000
+
+[passwords/credential%3A__REST_CREDENTIAL__%23TA-sftp-file-downloader-AOB%23data%2Finputs%2Ftest%3Aasdf%60%60splunk_cred_sep%60%602%3A]
+owner = admin
+version = 9.0.0
+modtime = 1661364496.303846000
+
+[inputs/test%3A%2F%2Fasdf]
+owner = admin
+version = 9.0.0
+modtime = 1661364496.633323000
+
+[passwords/credential%3A__REST_CREDENTIAL__%23TA-sftp-file-downloader-AOB%23data%2Finputs%2Ftest%3Atest%60%60splunk_cred_sep%60%601%3A]
+owner = admin
+version = 9.0.0
+modtime = 1661370436.938703000
+
+[passwords/credential%3A__REST_CREDENTIAL__%23TA-sftp-file-downloader-AOB%23data%2Finputs%2Ftest%3Atest%60%60splunk_cred_sep%60%602%3A]
+owner = admin
+version = 9.0.0
+modtime = 1661370436.953100000
+
+[inputs/test%3A%2F%2Ftest]
+owner = admin
+version = 9.0.0
+modtime = 1661370437.290005000
+
+[props/sftp]
+owner = admin
+version = 9.0.0
+modtime = 1661380599.505361000
+
+[props/source%3A%3A...ta-sftp-files-downloader%2A.log%2A]
+owner = admin
+version = 9.0.0
+modtime = 1661380599.876921000
+
+[props/source%3A%3A...ta_sftp_files_downloader%2A.log%2A]
+owner = admin
+version = 9.0.0
+modtime = 1661380600.249475000
+
+[ta_sftp_files_downloader_settings/logging]
+version = 9.0.0
+modtime = 1661806878.790855000
+
+[passwords/credential%3A__REST_CREDENTIAL__%23TA-sftp-files-downloader%23data%2Finputs%2Fsftp_files_downloader%3Asftp_username%60%60splunk_cred_sep%60%601%3A]
+owner = splunk-system-user
+version = 9.0.0
+modtime = 1661808918.615025000
+
+[passwords/credential%3A__REST_CREDENTIAL__%23TA-sftp-files-downloader%23data%2Finputs%2Fsftp_files_downloader%3Asftp_username%60%60splunk_cred_sep%60%602%3A]
+owner = splunk-system-user
+version = 9.0.0
+modtime = 1661808918.670816000
+
+[inputs/sftp_files_downloader%3A%2F%2Fsftp_username]
+version = 9.0.0
+modtime = 1661876736.604003000
