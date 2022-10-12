@@ -24,10 +24,15 @@ class SFTP_Client:
 
     @staticmethod
     def keyfile_class_for_type(key_file_type):
+        key_file_type = key_file_type.upper()
         if key_file_type == "RSA":
             return paramiko.RSAKey
         elif key_file_type == "DSA":
             return paramiko.DSSKey
+        elif key_file_type == "ECDSA":
+            return paramiko.ECDSAKey
+        elif key_file_type == "ED25519":
+            return paramiko.Ed25519Key
 
         raise TypeError(f"Unknown key_file_type: {key_file_type}")
 
