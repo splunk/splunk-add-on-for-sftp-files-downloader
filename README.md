@@ -11,7 +11,9 @@
 ### username password authentication
 
 > This can be configured in the inputs configuration page or inputs.conf
-> Requires a Splunk restart if you enter clear-text password here
+> It is recommended to use the GUI to configure the inputs. See screenshot below
+
+<img src="static/inputs.png"/>
 
 ```
 [sftp_files_downloader://sample_source]
@@ -61,3 +63,7 @@ This Add-on can be installed in **Splunk Enterprise** only.
 
 - Guo Huang
 - Man Pham
+
+## Support
+
+Find us in splunk-usergroups.slack.com
