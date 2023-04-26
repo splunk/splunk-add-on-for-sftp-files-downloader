@@ -2,11 +2,11 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
+from __future__ import absolute_import, division, print_function
 
+import collections
 import threading
 import types
-import typing
-import warnings
 
 import cryptography
 from cryptography import utils
@@ -14,61 +14,53 @@ from cryptography.exceptions import InternalError
 from cryptography.hazmat.bindings._openssl import ffi, lib
 from cryptography.hazmat.bindings.openssl._conditional import CONDITIONAL_NAMES
 
-_OpenSSLErrorWithText = typing.NamedTuple(
-    "_OpenSSLErrorWithText",
-    [("code", int), ("lib", int), ("reason", int), ("reason_text", bytes)],
+_OpenSSLErrorWithText = collections.namedtuple(
+    "_OpenSSLErrorWithText", ["code", "lib", "func", "reason", "reason_text"]
 )
 
 
-class _OpenSSLError:
-    def __init__(self, code: int, lib: int, reason: int):
+class _OpenSSLError(object):
+    def __init__(self, code, lib, func, reason):
         self._code = code
         self._lib = lib
+        self._func = func
         self._reason = reason
 
-    def _lib_reason_match(self, lib: int, reason: int) -> bool:
+    def _lib_reason_match(self, lib, reason):
         return lib == self.lib and reason == self.reason
 
-    @property
-    def code(self) -> int:
-        return self._code
-
-    @property
-    def lib(self) -> int:
-        return self._lib
-
-    @property
-    def reason(self) -> int:
-        return self._reason
+    code = utils.read_only_property("_code")
+    lib = utils.read_only_property("_lib")
+    func = utils.read_only_property("_func")
+    reason = utils.read_only_property("_reason")
 
 
-def _consume_errors(lib) -> typing.List[_OpenSSLError]:
+def _consume_errors(lib):
     errors = []
     while True:
-        code: int = lib.ERR_get_error()
+        code = lib.ERR_get_error()
         if code == 0:
             break
 
-        err_lib: int = lib.ERR_GET_LIB(code)
-        err_reason: int = lib.ERR_GET_REASON(code)
+        err_lib = lib.ERR_GET_LIB(code)
+        err_func = lib.ERR_GET_FUNC(code)
+        err_reason = lib.ERR_GET_REASON(code)
 
-        errors.append(_OpenSSLError(code, err_lib, err_reason))
+        errors.append(_OpenSSLError(code, err_lib, err_func, err_reason))
 
     return errors
 
 
-def _errors_with_text(
-    errors: typing.List[_OpenSSLError],
-) -> typing.List[_OpenSSLErrorWithText]:
+def _errors_with_text(errors):
     errors_with_text = []
     for err in errors:
         buf = ffi.new("char[]", 256)
         lib.ERR_error_string_n(err.code, buf, len(buf))
-        err_text_reason: bytes = ffi.string(buf)
+        err_text_reason = ffi.string(buf)
 
         errors_with_text.append(
             _OpenSSLErrorWithText(
-                err.code, err.lib, err.reason, err_text_reason
+                err.code, err.lib, err.func, err.reason, err_text_reason
             )
         )
 
@@ -79,9 +71,7 @@ def _consume_errors_with_text(lib):
     return _errors_with_text(_consume_errors(lib))
 
 
-def _openssl_assert(
-    lib, ok: bool, errors: typing.Optional[typing.List[_OpenSSLError]] = None
-) -> None:
+def _openssl_assert(lib, ok, errors=None):
     if not ok:
         if errors is None:
             errors = _consume_errors(lib)
@@ -101,7 +91,7 @@ def _openssl_assert(
 
 def build_conditional_library(lib, conditional_names):
     conditional_lib = types.ModuleType("lib")
-    conditional_lib._original_lib = lib  # type: ignore[attr-defined]
+    conditional_lib._original_lib = lib
     excluded_names = set()
     for condition, names_cb in conditional_names.items():
         if not getattr(lib, condition):
@@ -114,36 +104,18 @@ def build_conditional_library(lib, conditional_names):
     return conditional_lib
 
 
-class Binding:
+class Binding(object):
     """
     OpenSSL API wrapper.
     """
 
-    lib: typing.ClassVar = None
+    lib = None
     ffi = ffi
     _lib_loaded = False
     _init_lock = threading.Lock()
-    _legacy_provider: typing.Any = None
-    _default_provider: typing.Any = None
 
     def __init__(self):
         self._ensure_ffi_initialized()
-
-    def _enable_fips(self) -> None:
-        # This function enables FIPS mode for OpenSSL 3.0.0 on installs that
-        # have the FIPS provider installed properly.
-        _openssl_assert(self.lib, self.lib.CRYPTOGRAPHY_OPENSSL_300_OR_GREATER)
-        self._base_provider = self.lib.OSSL_PROVIDER_load(
-            self.ffi.NULL, b"base"
-        )
-        _openssl_assert(self.lib, self._base_provider != self.ffi.NULL)
-        self.lib._fips_provider = self.lib.OSSL_PROVIDER_load(
-            self.ffi.NULL, b"fips"
-        )
-        _openssl_assert(self.lib, self.lib._fips_provider != self.ffi.NULL)
-
-        res = self.lib.EVP_default_properties_enable_fips(self.ffi.NULL, 1)
-        _openssl_assert(self.lib, res == 1)
 
     @classmethod
     def _register_osrandom_engine(cls):
@@ -163,43 +135,15 @@ class Binding:
             if not cls._lib_loaded:
                 cls.lib = build_conditional_library(lib, CONDITIONAL_NAMES)
                 cls._lib_loaded = True
+                # initialize the SSL library
+                cls.lib.SSL_library_init()
+                # adds all ciphers/digests for EVP
+                cls.lib.OpenSSL_add_all_algorithms()
                 cls._register_osrandom_engine()
-                # As of OpenSSL 3.0.0 we must register a legacy cipher provider
-                # to get RC2 (needed for junk asymmetric private key
-                # serialization), RC4, Blowfish, IDEA, SEED, etc. These things
-                # are ugly legacy, but we aren't going to get rid of them
-                # any time soon.
-                if cls.lib.CRYPTOGRAPHY_OPENSSL_300_OR_GREATER:
-                    cls._legacy_provider = cls.lib.OSSL_PROVIDER_load(
-                        cls.ffi.NULL, b"legacy"
-                    )
-                    _openssl_assert(
-                        cls.lib, cls._legacy_provider != cls.ffi.NULL
-                    )
-                    cls._default_provider = cls.lib.OSSL_PROVIDER_load(
-                        cls.ffi.NULL, b"default"
-                    )
-                    _openssl_assert(
-                        cls.lib, cls._default_provider != cls.ffi.NULL
-                    )
 
     @classmethod
     def init_static_locks(cls):
         cls._ensure_ffi_initialized()
-
-
-def _verify_openssl_version(lib):
-    if (
-        lib.CRYPTOGRAPHY_OPENSSL_LESS_THAN_111
-        and not lib.CRYPTOGRAPHY_IS_LIBRESSL
-        and not lib.CRYPTOGRAPHY_IS_BORINGSSL
-    ):
-        warnings.warn(
-            "OpenSSL version 1.1.0 is no longer supported by the OpenSSL "
-            "project, please upgrade. The next release of cryptography will "
-            "be the last to support compiling with OpenSSL 1.1.0.",
-            utils.DeprecatedIn37,
-        )
 
 
 def _verify_package_version(version):
@@ -226,5 +170,3 @@ def _verify_package_version(version):
 _verify_package_version(cryptography.__version__)
 
 Binding.init_static_locks()
-
-_verify_openssl_version(Binding.lib)

@@ -2,7 +2,8 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
-import typing
+from __future__ import absolute_import, division, print_function
+
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import constant_time
@@ -12,12 +13,8 @@ _POLY1305_TAG_SIZE = 16
 _POLY1305_KEY_SIZE = 32
 
 
-if typing.TYPE_CHECKING:
-    from cryptography.hazmat.backends.openssl.backend import Backend
-
-
-class _Poly1305Context:
-    def __init__(self, backend: "Backend", key: bytes) -> None:
+class _Poly1305Context(object):
+    def __init__(self, backend, key):
         self._backend = backend
 
         key_ptr = self._backend._ffi.from_buffer(key)
@@ -47,22 +44,22 @@ class _Poly1305Context:
         )
         self._backend.openssl_assert(res == 1)
 
-    def update(self, data: bytes) -> None:
+    def update(self, data):
         data_ptr = self._backend._ffi.from_buffer(data)
         res = self._backend._lib.EVP_DigestSignUpdate(
             self._ctx, data_ptr, len(data)
         )
         self._backend.openssl_assert(res != 0)
 
-    def finalize(self) -> bytes:
+    def finalize(self):
         buf = self._backend._ffi.new("unsigned char[]", _POLY1305_TAG_SIZE)
-        outlen = self._backend._ffi.new("size_t *", _POLY1305_TAG_SIZE)
+        outlen = self._backend._ffi.new("size_t *")
         res = self._backend._lib.EVP_DigestSignFinal(self._ctx, buf, outlen)
         self._backend.openssl_assert(res != 0)
         self._backend.openssl_assert(outlen[0] == _POLY1305_TAG_SIZE)
         return self._backend._ffi.buffer(buf)[: outlen[0]]
 
-    def verify(self, tag: bytes) -> None:
+    def verify(self, tag):
         mac = self.finalize()
         if not constant_time.bytes_eq(mac, tag):
             raise InvalidSignature("Value did not match computed tag.")

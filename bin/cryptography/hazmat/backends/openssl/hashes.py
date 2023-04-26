@@ -2,20 +2,17 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
-import typing
+from __future__ import absolute_import, division, print_function
 
+
+from cryptography import utils
 from cryptography.exceptions import UnsupportedAlgorithm, _Reasons
 from cryptography.hazmat.primitives import hashes
 
 
-if typing.TYPE_CHECKING:
-    from cryptography.hazmat.backends.openssl.backend import Backend
-
-
-class _HashContext(hashes.HashContext):
-    def __init__(
-        self, backend: "Backend", algorithm: hashes.HashAlgorithm, ctx=None
-    ) -> None:
+@utils.register_interface(hashes.HashContext)
+class _HashContext(object):
+    def __init__(self, backend, algorithm, ctx=None):
         self._algorithm = algorithm
 
         self._backend = backend
@@ -40,11 +37,9 @@ class _HashContext(hashes.HashContext):
 
         self._ctx = ctx
 
-    @property
-    def algorithm(self) -> hashes.HashAlgorithm:
-        return self._algorithm
+    algorithm = utils.read_only_property("_algorithm")
 
-    def copy(self) -> "_HashContext":
+    def copy(self):
         copied_ctx = self._backend._lib.EVP_MD_CTX_new()
         copied_ctx = self._backend._ffi.gc(
             copied_ctx, self._backend._lib.EVP_MD_CTX_free
@@ -53,14 +48,14 @@ class _HashContext(hashes.HashContext):
         self._backend.openssl_assert(res != 0)
         return _HashContext(self._backend, self.algorithm, ctx=copied_ctx)
 
-    def update(self, data: bytes) -> None:
+    def update(self, data):
         data_ptr = self._backend._ffi.from_buffer(data)
         res = self._backend._lib.EVP_DigestUpdate(
             self._ctx, data_ptr, len(data)
         )
         self._backend.openssl_assert(res != 0)
 
-    def finalize(self) -> bytes:
+    def finalize(self):
         if isinstance(self.algorithm, hashes.ExtendableOutputFunction):
             # extendable output functions use a different finalize
             return self._finalize_xof()
@@ -76,7 +71,7 @@ class _HashContext(hashes.HashContext):
             )
             return self._backend._ffi.buffer(buf)[: outlen[0]]
 
-    def _finalize_xof(self) -> bytes:
+    def _finalize_xof(self):
         buf = self._backend._ffi.new(
             "unsigned char[]", self.algorithm.digest_size
         )

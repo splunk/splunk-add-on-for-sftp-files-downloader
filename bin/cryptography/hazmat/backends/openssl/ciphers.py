@@ -2,30 +2,29 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
-import typing
+from __future__ import absolute_import, division, print_function
 
+from cryptography import utils
 from cryptography.exceptions import InvalidTag, UnsupportedAlgorithm, _Reasons
 from cryptography.hazmat.primitives import ciphers
-from cryptography.hazmat.primitives.ciphers import algorithms, modes
+from cryptography.hazmat.primitives.ciphers import modes
 
 
-if typing.TYPE_CHECKING:
-    from cryptography.hazmat.backends.openssl.backend import Backend
-
-
-class _CipherContext:
+@utils.register_interface(ciphers.CipherContext)
+@utils.register_interface(ciphers.AEADCipherContext)
+@utils.register_interface(ciphers.AEADEncryptionContext)
+@utils.register_interface(ciphers.AEADDecryptionContext)
+class _CipherContext(object):
     _ENCRYPT = 1
     _DECRYPT = 0
-    _MAX_CHUNK_SIZE = 2**30 - 1
+    _MAX_CHUNK_SIZE = 2 ** 30 - 1
 
-    def __init__(
-        self, backend: "Backend", cipher, mode, operation: int
-    ) -> None:
+    def __init__(self, backend, cipher, mode, operation):
         self._backend = backend
         self._cipher = cipher
         self._mode = mode
         self._operation = operation
-        self._tag: typing.Optional[bytes] = None
+        self._tag = None
 
         if isinstance(self._cipher, ciphers.BlockCipherAlgorithm):
             self._block_size_bytes = self._cipher.block_size // 8
@@ -68,7 +67,7 @@ class _CipherContext:
             iv_nonce = self._backend._ffi.from_buffer(mode.tweak)
         elif isinstance(mode, modes.ModeWithNonce):
             iv_nonce = self._backend._ffi.from_buffer(mode.nonce)
-        elif isinstance(cipher, algorithms.ChaCha20):
+        elif isinstance(cipher, modes.ModeWithNonce):
             iv_nonce = self._backend._ffi.from_buffer(cipher.nonce)
         else:
             iv_nonce = self._backend._ffi.NULL
@@ -114,39 +113,18 @@ class _CipherContext:
             iv_nonce,
             operation,
         )
-
-        # Check for XTS mode duplicate keys error
-        errors = self._backend._consume_errors()
-        lib = self._backend._lib
-        if res == 0 and (
-            (
-                lib.CRYPTOGRAPHY_OPENSSL_111D_OR_GREATER
-                and errors[0]._lib_reason_match(
-                    lib.ERR_LIB_EVP, lib.EVP_R_XTS_DUPLICATED_KEYS
-                )
-            )
-            or (
-                lib.Cryptography_HAS_PROVIDERS
-                and errors[0]._lib_reason_match(
-                    lib.ERR_LIB_PROV, lib.PROV_R_XTS_DUPLICATED_KEYS
-                )
-            )
-        ):
-            raise ValueError("In XTS mode duplicated keys are not allowed")
-
-        self._backend.openssl_assert(res != 0, errors=errors)
-
+        self._backend.openssl_assert(res != 0)
         # We purposely disable padding here as it's handled higher up in the
         # API.
         self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
         self._ctx = ctx
 
-    def update(self, data: bytes) -> bytes:
+    def update(self, data):
         buf = bytearray(len(data) + self._block_size_bytes - 1)
         n = self.update_into(data, buf)
         return bytes(buf[:n])
 
-    def update_into(self, data: bytes, buf: bytes) -> int:
+    def update_into(self, data, buf):
         total_data_len = len(data)
         if len(buf) < (total_data_len + self._block_size_bytes - 1):
             raise ValueError(
@@ -168,20 +146,13 @@ class _CipherContext:
             res = self._backend._lib.EVP_CipherUpdate(
                 self._ctx, outbuf, outlen, inbuf, inlen
             )
-            if res == 0 and isinstance(self._mode, modes.XTS):
-                self._backend._consume_errors()
-                raise ValueError(
-                    "In XTS mode you must supply at least a full block in the "
-                    "first update call. For AES this is 16 bytes."
-                )
-            else:
-                self._backend.openssl_assert(res != 0)
+            self._backend.openssl_assert(res != 0)
             data_processed += inlen
             total_out += outlen[0]
 
         return total_out
 
-    def finalize(self) -> bytes:
+    def finalize(self):
         if (
             self._operation == self._DECRYPT
             and isinstance(self._mode, modes.ModeWithAuthenticationTag)
@@ -200,23 +171,10 @@ class _CipherContext:
             if not errors and isinstance(self._mode, modes.GCM):
                 raise InvalidTag
 
-            lib = self._backend._lib
             self._backend.openssl_assert(
                 errors[0]._lib_reason_match(
-                    lib.ERR_LIB_EVP,
-                    lib.EVP_R_DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH,
-                )
-                or (
-                    lib.Cryptography_HAS_PROVIDERS
-                    and errors[0]._lib_reason_match(
-                        lib.ERR_LIB_PROV,
-                        lib.PROV_R_WRONG_FINAL_BLOCK_LENGTH,
-                    )
-                )
-                or (
-                    lib.CRYPTOGRAPHY_IS_BORINGSSL
-                    and errors[0].reason
-                    == lib.CIPHER_R_DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH
+                    self._backend._lib.ERR_LIB_EVP,
+                    self._backend._lib.EVP_R_DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH,
                 ),
                 errors=errors,
             )
@@ -241,22 +199,15 @@ class _CipherContext:
             self._backend.openssl_assert(res != 0)
             self._tag = self._backend._ffi.buffer(tag_buf)[:]
 
-        res = self._backend._lib.EVP_CIPHER_CTX_reset(self._ctx)
+        res = self._backend._lib.EVP_CIPHER_CTX_cleanup(self._ctx)
         self._backend.openssl_assert(res == 1)
         return self._backend._ffi.buffer(buf)[: outlen[0]]
 
-    def finalize_with_tag(self, tag: bytes) -> bytes:
-        tag_len = len(tag)
-        if tag_len < self._mode._min_tag_length:
+    def finalize_with_tag(self, tag):
+        if len(tag) < self._mode._min_tag_length:
             raise ValueError(
                 "Authentication tag must be {} bytes or longer.".format(
                     self._mode._min_tag_length
-                )
-            )
-        elif tag_len > self._block_size_bytes:
-            raise ValueError(
-                "Authentication tag cannot be more than {} bytes.".format(
-                    self._block_size_bytes
                 )
             )
         res = self._backend._lib.EVP_CIPHER_CTX_ctrl(
@@ -266,7 +217,7 @@ class _CipherContext:
         self._tag = tag
         return self.finalize()
 
-    def authenticate_additional_data(self, data: bytes) -> None:
+    def authenticate_additional_data(self, data):
         outlen = self._backend._ffi.new("int *")
         res = self._backend._lib.EVP_CipherUpdate(
             self._ctx,
@@ -277,6 +228,4 @@ class _CipherContext:
         )
         self._backend.openssl_assert(res != 0)
 
-    @property
-    def tag(self) -> typing.Optional[bytes]:
-        return self._tag
+    tag = utils.read_only_property("_tag")
