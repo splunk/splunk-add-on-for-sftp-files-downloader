@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Paramiko; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA.
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA.
 
 """
 SSH Agent interface
@@ -42,17 +42,6 @@ SSH2_AGENT_IDENTITIES_ANSWER = 12
 cSSH2_AGENTC_SIGN_REQUEST = byte_chr(13)
 SSH2_AGENT_SIGN_RESPONSE = 14
 
-SSH_AGENT_RSA_SHA2_256 = 2
-SSH_AGENT_RSA_SHA2_512 = 4
-# NOTE: RFC mildly confusing; while these flags are OR'd together, OpenSSH at
-# least really treats them like "AND"s, in the sense that if it finds the
-# SHA256 flag set it won't continue looking at the SHA512 one; it
-# short-circuits right away.
-# Thus, we never want to eg submit 6 to say "either's good".
-ALGORITHM_FLAG_MAP = {
-    "rsa-sha2-256": SSH_AGENT_RSA_SHA2_256,
-    "rsa-sha2-512": SSH_AGENT_RSA_SHA2_512,
-}
 
 
 class AgentSSH(object):
@@ -76,7 +65,7 @@ class AgentSSH(object):
         self._conn = conn
         ptype, result = self._send_message(cSSH2_AGENTC_REQUEST_IDENTITIES)
         if ptype != SSH2_AGENT_IDENTITIES_ANSWER:
-            raise SSHException("could not get keys from ssh-agent")
+            raise SSHException('could not get keys from ssh-agent')
         keys = []
         for i in range(result.get_int()):
             keys.append(AgentKey(self, result.get_binary()))
@@ -91,19 +80,19 @@ class AgentSSH(object):
 
     def _send_message(self, msg):
         msg = asbytes(msg)
-        self._conn.send(struct.pack(">I", len(msg)) + msg)
-        data = self._read_all(4)
-        msg = Message(self._read_all(struct.unpack(">I", data)[0]))
+        self._conn.send(struct.pack('>I', len(msg)) + msg)
+        l = self._read_all(4)
+        msg = Message(self._read_all(struct.unpack('>I', l)[0]))
         return ord(msg.get_byte()), msg
 
     def _read_all(self, wanted):
         result = self._conn.recv(wanted)
         while len(result) < wanted:
             if len(result) == 0:
-                raise SSHException("lost ssh-agent")
+                raise SSHException('lost ssh-agent')
             extra = self._conn.recv(wanted - len(result))
             if len(extra) == 0:
-                raise SSHException("lost ssh-agent")
+                raise SSHException('lost ssh-agent')
             result += extra
         return result
 
@@ -112,7 +101,6 @@ class AgentProxyThread(threading.Thread):
     """
     Class in charge of communication between two channels.
     """
-
     def __init__(self, agent):
         threading.Thread.__init__(self, target=self.run)
         self._agent = agent
@@ -121,25 +109,19 @@ class AgentProxyThread(threading.Thread):
     def run(self):
         try:
             (r, addr) = self.get_connection()
-            # Found that r should be either
-            # a socket from the socket library or None
+            # Found that r should be either a socket from the socket library or None
             self.__inr = r
-            # The address should be an IP address as a string? or None
-            self.__addr = addr
+            self.__addr = addr # This should be an IP address as a string? or None
             self._agent.connect()
-            if not isinstance(self._agent, int) and (
-                self._agent._conn is None
-                or not hasattr(self._agent._conn, "fileno")
-            ):
+            if not isinstance(self._agent, int) and (self._agent._conn is None or not hasattr(self._agent._conn, 'fileno')):
                 raise AuthenticationException("Unable to connect to SSH agent")
             self._communicate()
         except:
-            # XXX Not sure what to do here ... raise or pass ?
+            #XXX Not sure what to do here ... raise or pass ?
             raise
 
     def _communicate(self):
         import fcntl
-
         oldflags = fcntl.fcntl(self.__inr, fcntl.F_GETFL)
         fcntl.fcntl(self.__inr, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
         while not self._exit:
@@ -172,7 +154,6 @@ class AgentLocalProxy(AgentProxyThread):
     Class to be used when wanting to ask a local SSH Agent being
     asked from a remote fake agent (so use a unix socket for ex.)
     """
-
     def __init__(self, agent):
         AgentProxyThread.__init__(self, agent)
 
@@ -196,41 +177,12 @@ class AgentRemoteProxy(AgentProxyThread):
     """
     Class to be used when wanting to ask a remote SSH Agent
     """
-
     def __init__(self, agent, chan):
         AgentProxyThread.__init__(self, agent)
         self.__chan = chan
 
     def get_connection(self):
         return self.__chan, None
-
-
-def get_agent_connection():
-    """
-    Returns some SSH agent object, or None if none were found/supported.
-
-    .. versionadded:: 2.10
-    """
-    if ("SSH_AUTH_SOCK" in os.environ) and (sys.platform != "win32"):
-        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        try:
-            retry_on_signal(lambda: conn.connect(os.environ["SSH_AUTH_SOCK"]))
-            return conn
-        except:
-            # probably a dangling env var: the ssh agent is gone
-            return
-    elif sys.platform == "win32":
-        from . import win_pageant, win_openssh
-
-        conn = None
-        if win_pageant.can_talk_to_agent():
-            conn = win_pageant.PageantConnection()
-        elif win_openssh.can_talk_to_agent():
-            conn = win_openssh.OpenSSHAgentConnection()
-        return conn
-    else:
-        # no agent support
-        return
 
 
 class AgentClientProxy(object):
@@ -245,7 +197,6 @@ class AgentClientProxy(object):
        the remote fake agent and the local agent
     #. Communication occurs ...
     """
-
     def __init__(self, chanRemote):
         self._conn = None
         self.__chanR = chanRemote
@@ -259,8 +210,21 @@ class AgentClientProxy(object):
         """
         Method automatically called by ``AgentProxyThread.run``.
         """
-        conn = get_agent_connection()
-        if not conn:
+        if ('SSH_AUTH_SOCK' in os.environ) and (sys.platform != 'win32'):
+            conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                retry_on_signal(lambda: conn.connect(os.environ['SSH_AUTH_SOCK']))
+            except:
+                # probably a dangling env var: the ssh agent is gone
+                return
+        elif sys.platform == 'win32':
+            import paramiko.win_pageant as win_pageant
+            if win_pageant.can_talk_to_agent():
+                conn = win_pageant.PageantConnection()
+            else:
+                return
+        else:
+            # no agent support
             return
         self._conn = conn
 
@@ -280,15 +244,14 @@ class AgentServerProxy(AgentSSH):
     """
     :param .Transport t: Transport used for SSH Agent communication forwarding
 
-    :raises: `.SSHException` -- mostly if we lost the agent
+    :raises SSHException: mostly if we lost the agent
     """
-
     def __init__(self, t):
         AgentSSH.__init__(self)
         self.__t = t
-        self._dir = tempfile.mkdtemp("sshproxy")
+        self._dir = tempfile.mkdtemp('sshproxy')
         os.chmod(self._dir, stat.S_IRWXU)
-        self._file = self._dir + "/sshproxy.ssh"
+        self._file = self._dir + '/sshproxy.ssh'
         self.thread = AgentLocalProxy(self)
         self.thread.start()
 
@@ -298,8 +261,8 @@ class AgentServerProxy(AgentSSH):
     def connect(self):
         conn_sock = self.__t.open_forward_agent_channel()
         if conn_sock is None:
-            raise SSHException("lost ssh-agent")
-        conn_sock.set_name("auth-agent")
+            raise SSHException('lost ssh-agent')
+        conn_sock.set_name('auth-agent')
         self._connect(conn_sock)
 
     def close(self):
@@ -320,7 +283,7 @@ class AgentServerProxy(AgentSSH):
         :return:
             a dict containing the ``SSH_AUTH_SOCK`` environnement variables
         """
-        return {"SSH_AUTH_SOCK": self._get_filename()}
+        return {'SSH_AUTH_SOCK': self._get_filename()}
 
     def _get_filename(self):
         return self._file
@@ -347,7 +310,6 @@ class AgentRequestHandler(object):
         # the remote end.
         session.exec_command("git clone https://my.git.repository/")
     """
-
     def __init__(self, chanClient):
         self._conn = None
         self.__chanC = chanClient
@@ -369,26 +331,34 @@ class Agent(AgentSSH):
     """
     Client interface for using private keys from an SSH agent running on the
     local machine.  If an SSH agent is running, this class can be used to
-    connect to it and retrieve `.PKey` objects which can be used when
+    connect to it and retreive `.PKey` objects which can be used when
     attempting to authenticate to remote SSH servers.
 
     Upon initialization, a session with the local machine's SSH agent is
     opened, if one is running. If no agent is running, initialization will
     succeed, but `get_keys` will return an empty tuple.
 
-    :raises: `.SSHException` --
+    :raises SSHException:
         if an SSH agent is found, but speaks an incompatible protocol
-
-    .. versionchanged:: 2.10
-        Added support for native openssh agent on windows (extending previous
-        putty pageant support)
     """
-
     def __init__(self):
         AgentSSH.__init__(self)
 
-        conn = get_agent_connection()
-        if not conn:
+        if ('SSH_AUTH_SOCK' in os.environ) and (sys.platform != 'win32'):
+            conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                conn.connect(os.environ['SSH_AUTH_SOCK'])
+            except:
+                # probably a dangling env var: the ssh agent is gone
+                return
+        elif sys.platform == 'win32':
+            from . import win_pageant
+            if win_pageant.can_talk_to_agent():
+                conn = win_pageant.PageantConnection()
+            else:
+                return
+        else:
+            # no agent support
             return
         self._connect(conn)
 
@@ -405,11 +375,9 @@ class AgentKey(PKey):
     authenticating to a remote server (signing).  Most other key operations
     work as expected.
     """
-
     def __init__(self, agent, blob):
         self.agent = agent
         self.blob = blob
-        self.public_blob = None
         self.name = Message(blob).get_text()
 
     def asbytes(self):
@@ -421,17 +389,13 @@ class AgentKey(PKey):
     def get_name(self):
         return self.name
 
-    @property
-    def _fields(self):
-        raise NotImplementedError
-
-    def sign_ssh_data(self, data, algorithm=None):
+    def sign_ssh_data(self, data):
         msg = Message()
         msg.add_byte(cSSH2_AGENTC_SIGN_REQUEST)
         msg.add_string(self.blob)
         msg.add_string(data)
-        msg.add_int(ALGORITHM_FLAG_MAP.get(algorithm, 0))
+        msg.add_int(0)
         ptype, result = self.agent._send_message(msg)
         if ptype != SSH2_AGENT_SIGN_RESPONSE:
-            raise SSHException("key cannot be used for signing")
+            raise SSHException('key cannot be used for signing')
         return result.get_binary()

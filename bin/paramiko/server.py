@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Paramiko; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA.
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA.
 
 """
 `.ServerInterface` is an interface to override for server support.
@@ -22,17 +22,11 @@
 
 import threading
 from paramiko import util
-from paramiko.common import (
-    DEBUG,
-    ERROR,
-    OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED,
-    AUTH_FAILED,
-    AUTH_SUCCESSFUL,
-)
+from paramiko.common import DEBUG, ERROR, OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED, AUTH_FAILED, AUTH_SUCCESSFUL
 from paramiko.py3compat import string_types
 
 
-class ServerInterface(object):
+class ServerInterface (object):
     """
     This class defines an interface for controlling the behavior of Paramiko
     in server mode.
@@ -75,7 +69,7 @@ class ServerInterface(object):
             - ``OPEN_FAILED_CONNECT_FAILED``
             - ``OPEN_FAILED_UNKNOWN_CHANNEL_TYPE``
             - ``OPEN_FAILED_RESOURCE_SHORTAGE``
-
+        
         The default implementation always returns
         ``OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED``.
 
@@ -102,22 +96,22 @@ class ServerInterface(object):
         :param str username: the username requesting authentication.
         :return: a comma-separated `str` of authentication types
         """
-        return "password"
+        return 'password'
 
     def check_auth_none(self, username):
         """
         Determine if a client may open channels with no (further)
         authentication.
 
-        Return ``AUTH_FAILED`` if the client must authenticate, or
-        ``AUTH_SUCCESSFUL`` if it's okay for the client to not
+        Return `.AUTH_FAILED` if the client must authenticate, or
+        `.AUTH_SUCCESSFUL` if it's okay for the client to not
         authenticate.
 
-        The default implementation always returns ``AUTH_FAILED``.
+        The default implementation always returns `.AUTH_FAILED`.
 
         :param str username: the username of the client.
         :return:
-            ``AUTH_FAILED`` if the authentication fails; ``AUTH_SUCCESSFUL`` if
+            `.AUTH_FAILED` if the authentication fails; `.AUTH_SUCCESSFUL` if
             it succeeds.
         :rtype: int
         """
@@ -128,21 +122,21 @@ class ServerInterface(object):
         Determine if a given username and password supplied by the client is
         acceptable for use in authentication.
 
-        Return ``AUTH_FAILED`` if the password is not accepted,
-        ``AUTH_SUCCESSFUL`` if the password is accepted and completes
-        the authentication, or ``AUTH_PARTIALLY_SUCCESSFUL`` if your
+        Return `.AUTH_FAILED` if the password is not accepted,
+        `.AUTH_SUCCESSFUL` if the password is accepted and completes
+        the authentication, or `.AUTH_PARTIALLY_SUCCESSFUL` if your
         authentication is stateful, and this key is accepted for
         authentication, but more authentication is required.  (In this latter
         case, `get_allowed_auths` will be called to report to the client what
         options it has for continuing the authentication.)
 
-        The default implementation always returns ``AUTH_FAILED``.
+        The default implementation always returns `.AUTH_FAILED`.
 
         :param str username: the username of the authenticating client.
         :param str password: the password given by the client.
         :return:
-            ``AUTH_FAILED`` if the authentication fails; ``AUTH_SUCCESSFUL`` if
-            it succeeds; ``AUTH_PARTIALLY_SUCCESSFUL`` if the password auth is
+            `.AUTH_FAILED` if the authentication fails; `.AUTH_SUCCESSFUL` if
+            it succeeds; `.AUTH_PARTIALLY_SUCCESSFUL` if the password auth is
             successful, but authentication must continue.
         :rtype: int
         """
@@ -155,9 +149,9 @@ class ServerInterface(object):
         check the username and key and decide if you would accept a signature
         made using this key.
 
-        Return ``AUTH_FAILED`` if the key is not accepted,
-        ``AUTH_SUCCESSFUL`` if the key is accepted and completes the
-        authentication, or ``AUTH_PARTIALLY_SUCCESSFUL`` if your
+        Return `.AUTH_FAILED` if the key is not accepted,
+        `.AUTH_SUCCESSFUL` if the key is accepted and completes the
+        authentication, or `.AUTH_PARTIALLY_SUCCESSFUL` if your
         authentication is stateful, and this password is accepted for
         authentication, but more authentication is required.  (In this latter
         case, `get_allowed_auths` will be called to report to the client what
@@ -166,54 +160,54 @@ class ServerInterface(object):
         Note that you don't have to actually verify any key signtature here.
         If you're willing to accept the key, Paramiko will do the work of
         verifying the client's signature.
-
-        The default implementation always returns ``AUTH_FAILED``.
+        
+        The default implementation always returns `.AUTH_FAILED`.
 
         :param str username: the username of the authenticating client
         :param .PKey key: the key object provided by the client
         :return:
-            ``AUTH_FAILED`` if the client can't authenticate with this key;
-            ``AUTH_SUCCESSFUL`` if it can; ``AUTH_PARTIALLY_SUCCESSFUL`` if it
+            `.AUTH_FAILED` if the client can't authenticate with this key;
+            `.AUTH_SUCCESSFUL` if it can; `.AUTH_PARTIALLY_SUCCESSFUL` if it
             can authenticate with this key but must continue with
             authentication
         :rtype: int
         """
         return AUTH_FAILED
-
+    
     def check_auth_interactive(self, username, submethods):
         """
         Begin an interactive authentication challenge, if supported.  You
         should override this method in server mode if you want to support the
         ``"keyboard-interactive"`` auth type, which requires you to send a
         series of questions for the client to answer.
-
-        Return ``AUTH_FAILED`` if this auth method isn't supported.  Otherwise,
+        
+        Return `.AUTH_FAILED` if this auth method isn't supported.  Otherwise,
         you should return an `.InteractiveQuery` object containing the prompts
         and instructions for the user.  The response will be sent via a call
         to `check_auth_interactive_response`.
-
-        The default implementation always returns ``AUTH_FAILED``.
-
+        
+        The default implementation always returns `.AUTH_FAILED`.
+        
         :param str username: the username of the authenticating client
         :param str submethods:
             a comma-separated list of methods preferred by the client (usually
             empty)
         :return:
-            ``AUTH_FAILED`` if this auth method isn't supported; otherwise an
+            `.AUTH_FAILED` if this auth method isn't supported; otherwise an
             object containing queries for the user
         :rtype: int or `.InteractiveQuery`
         """
         return AUTH_FAILED
-
+    
     def check_auth_interactive_response(self, responses):
         """
         Continue or finish an interactive authentication challenge, if
         supported.  You should override this method in server mode if you want
         to support the ``"keyboard-interactive"`` auth type.
-
-        Return ``AUTH_FAILED`` if the responses are not accepted,
-        ``AUTH_SUCCESSFUL`` if the responses are accepted and complete
-        the authentication, or ``AUTH_PARTIALLY_SUCCESSFUL`` if your
+        
+        Return `.AUTH_FAILED` if the responses are not accepted,
+        `.AUTH_SUCCESSFUL` if the responses are accepted and complete
+        the authentication, or `.AUTH_PARTIALLY_SUCCESSFUL` if your
         authentication is stateful, and this set of responses is accepted for
         authentication, but more authentication is required.  (In this latter
         case, `get_allowed_auths` will be called to report to the client what
@@ -224,21 +218,21 @@ class ServerInterface(object):
         client to respond with more answers, calling this method again.  This
         cycle can continue indefinitely.
 
-        The default implementation always returns ``AUTH_FAILED``.
+        The default implementation always returns `.AUTH_FAILED`.
 
-        :param responses: list of `str` responses from the client
+        :param list responses: list of `str` responses from the client
         :return:
-            ``AUTH_FAILED`` if the authentication fails; ``AUTH_SUCCESSFUL`` if
-            it succeeds; ``AUTH_PARTIALLY_SUCCESSFUL`` if the interactive auth
+            `.AUTH_FAILED` if the authentication fails; `.AUTH_SUCCESSFUL` if
+            it succeeds; `.AUTH_PARTIALLY_SUCCESSFUL` if the interactive auth
             is successful, but authentication must continue; otherwise an
             object containing queries for the user
         :rtype: int or `.InteractiveQuery`
         """
         return AUTH_FAILED
 
-    def check_auth_gssapi_with_mic(
-        self, username, gss_authenticated=AUTH_FAILED, cc_file=None
-    ):
+    def check_auth_gssapi_with_mic(self, username,
+                                   gss_authenticated=AUTH_FAILED,
+                                   cc_file=None):
         """
         Authenticate the given user to the server if he is a valid krb5
         principal.
@@ -246,8 +240,8 @@ class ServerInterface(object):
         :param str username: The username of the authenticating client
         :param int gss_authenticated: The result of the krb5 authentication
         :param str cc_filename: The krb5 client credentials cache filename
-        :return: ``AUTH_FAILED`` if the user is not authenticated otherwise
-                 ``AUTH_SUCCESSFUL``
+        :return: `.AUTH_FAILED` if the user is not authenticated otherwise
+                 `.AUTH_SUCCESSFUL`
         :rtype: int
         :note: Kerberos credential delegation is not supported.
         :see: `.ssh_gss`
@@ -256,19 +250,18 @@ class ServerInterface(object):
                  We don't check if the krb5 principal is allowed to log in on
                  the server, because there is no way to do that in python. So
                  if you develop your own SSH server with paramiko for a cetain
-                 plattform like Linux, you should call C{krb5_kuserok()} in
-                 your local kerberos library to make sure that the
-                 krb5_principal has an account on the server and is allowed to
-                 log in as a user.
-        :see: http://www.unix.com/man-page/all/3/krb5_kuserok/
+                 plattform like Linux, you should call C{krb5_kuserok()} in your
+                 local kerberos library to make sure that the krb5_principal has
+                 an account on the server and is allowed to log in as a user.
+        :see: `http://www.unix.com/man-page/all/3/krb5_kuserok/`
         """
         if gss_authenticated == AUTH_SUCCESSFUL:
             return AUTH_SUCCESSFUL
         return AUTH_FAILED
 
-    def check_auth_gssapi_keyex(
-        self, username, gss_authenticated=AUTH_FAILED, cc_file=None
-    ):
+    def check_auth_gssapi_keyex(self, username,
+                                gss_authenticated=AUTH_FAILED,
+                                cc_file=None):
         """
         Authenticate the given user to the server if he is a valid krb5
         principal and GSS-API Key Exchange was performed.
@@ -278,21 +271,20 @@ class ServerInterface(object):
         :param str username: The username of the authenticating client
         :param int gss_authenticated: The result of the krb5 authentication
         :param str cc_filename: The krb5 client credentials cache filename
-        :return: ``AUTH_FAILED`` if the user is not authenticated otherwise
-                 ``AUTH_SUCCESSFUL``
+        :return: `.AUTH_FAILED` if the user is not authenticated otherwise
+                 `.AUTH_SUCCESSFUL`
         :rtype: int
         :note: Kerberos credential delegation is not supported.
-        :see: `.ssh_gss` `.kex_gss`
+        :see: `.ssh_gss` `.kex_gss` 
         :note: : We are just checking in L{AuthHandler} that the given user is
                  a valid krb5 principal!
                  We don't check if the krb5 principal is allowed to log in on
                  the server, because there is no way to do that in python. So
                  if you develop your own SSH server with paramiko for a cetain
-                 plattform like Linux, you should call C{krb5_kuserok()} in
-                 your local kerberos library to make sure that the
-                 krb5_principal has an account on the server and is allowed
-                 to log in as a user.
-        :see: http://www.unix.com/man-page/all/3/krb5_kuserok/
+                 plattform like Linux, you should call C{krb5_kuserok()} in your
+                 local kerberos library to make sure that the krb5_principal has
+                 an account on the server and is allowed to log in as a user.
+        :see: `http://www.unix.com/man-page/all/3/krb5_kuserok/`
         """
         if gss_authenticated == AUTH_SUCCESSFUL:
             return AUTH_SUCCESSFUL
@@ -304,12 +296,14 @@ class ServerInterface(object):
         authentication.
         The default implementation always returns false.
 
-        :returns bool: Whether GSSAPI authentication is enabled.
-        :see: `.ssh_gss`
+        :return: True if GSSAPI authentication is enabled otherwise false
+        :rtype:  Boolean
+        :see: : `.ssh_gss`
         """
         UseGSSAPI = False
+        GSSAPICleanupCredentials = False
         return UseGSSAPI
-
+        
     def check_port_forward_request(self, address, port):
         """
         Handle a request for port forwarding.  The client is asking that
@@ -318,11 +312,11 @@ class ServerInterface(object):
         address (any address associated with this server) and a port of ``0``
         indicates that no specific port is requested (usually the OS will pick
         a port).
-
+        
         The default implementation always returns ``False``, rejecting the
         port forwarding request.  If the request is accepted, you should return
         the port opened for listening.
-
+        
         :param str address: the requested address
         :param int port: the requested port
         :return:
@@ -330,18 +324,18 @@ class ServerInterface(object):
             to reject
         """
         return False
-
+    
     def cancel_port_forward_request(self, address, port):
         """
         The client would like to cancel a previous port-forwarding request.
         If the given address and port is being forwarded across this ssh
         connection, the port should be closed.
-
+        
         :param str address: the forwarded address
         :param int port: the forwarded port
         """
         pass
-
+        
     def check_global_request(self, kind, msg):
         """
         Handle a global request of the given ``kind``.  This method is called
@@ -360,7 +354,7 @@ class ServerInterface(object):
 
         The default implementation always returns ``False``, indicating that it
         does not support any global requests.
-
+        
         .. note:: Port forwarding requests are handled separately, in
             `check_port_forward_request`.
 
@@ -372,11 +366,10 @@ class ServerInterface(object):
         """
         return False
 
-    # ...Channel requests...
+    ###  Channel requests
 
-    def check_channel_pty_request(
-        self, channel, term, width, height, pixelwidth, pixelheight, modes
-    ):
+    def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight,
+                                  modes):
         """
         Determine if a pseudo-terminal of the given dimensions (usually
         requested for shell access) can be provided on the given channel.
@@ -392,7 +385,7 @@ class ServerInterface(object):
         :param int pixelheight:
             height of screen in pixels, if known (may be ``0`` if unknown).
         :return:
-            ``True`` if the pseudo-terminal has been allocated; ``False``
+            ``True`` if the psuedo-terminal has been allocated; ``False``
             otherwise.
         """
         return False
@@ -418,20 +411,20 @@ class ServerInterface(object):
         Determine if a shell command will be executed for the client.  If this
         method returns ``True``, the channel should be connected to the stdin,
         stdout, and stderr of the shell command.
-
+        
         The default implementation always returns ``False``.
-
+        
         :param .Channel channel: the `.Channel` the request arrived on.
         :param str command: the command to execute.
         :return:
             ``True`` if this channel is now hooked up to the stdin, stdout, and
             stderr of the executing command; ``False`` if the command will not
             be executed.
-
+        
         .. versionadded:: 1.1
         """
         return False
-
+        
     def check_channel_subsystem_request(self, channel, name):
         """
         Determine if a requested subsystem will be provided to the client on
@@ -454,17 +447,14 @@ class ServerInterface(object):
             ``True`` if this channel is now hooked up to the requested
             subsystem; ``False`` if that subsystem can't or won't be provided.
         """
-        transport = channel.get_transport()
-        handler_class, larg, kwarg = transport._get_subsystem_handler(name)
+        handler_class, larg, kwarg = channel.get_transport()._get_subsystem_handler(name)
         if handler_class is None:
             return False
         handler = handler_class(channel, name, self, *larg, **kwarg)
         handler.start()
         return True
 
-    def check_channel_window_change_request(
-        self, channel, width, height, pixelwidth, pixelheight
-    ):
+    def check_channel_window_change_request(self, channel, width, height, pixelwidth, pixelheight):
         """
         Determine if the pseudo-terminal on the given channel can be resized.
         This only makes sense if a pty was previously allocated on it.
@@ -481,22 +471,15 @@ class ServerInterface(object):
         :return: ``True`` if the terminal was resized; ``False`` if not.
         """
         return False
-
-    def check_channel_x11_request(
-        self,
-        channel,
-        single_connection,
-        auth_protocol,
-        auth_cookie,
-        screen_number,
-    ):
+    
+    def check_channel_x11_request(self, channel, single_connection, auth_protocol, auth_cookie, screen_number):
         """
         Determine if the client will be provided with an X11 session.  If this
         method returns ``True``, X11 applications should be routed through new
         SSH channels, using `.Transport.open_x11_channel`.
-
+        
         The default implementation always returns ``False``.
-
+        
         :param .Channel channel: the `.Channel` the X11 request arrived on
         :param bool single_connection:
             ``True`` if only a single X11 channel should be opened, else
@@ -546,7 +529,7 @@ class ServerInterface(object):
             - ``OPEN_FAILED_CONNECT_FAILED``
             - ``OPEN_FAILED_UNKNOWN_CHANNEL_TYPE``
             - ``OPEN_FAILED_RESOURCE_SHORTAGE``
-
+        
         The default implementation always returns
         ``OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED``.
 
@@ -579,33 +562,19 @@ class ServerInterface(object):
         """
         return False
 
-    def get_banner(self):
-        """
-        A pre-login banner to display to the user. The message may span
-        multiple lines separated by crlf pairs. The language should be in
-        rfc3066 style, for example: en-US
 
-        The default implementation always returns ``(None, None)``.
-
-        :returns: A tuple containing the banner and language code.
-
-        .. versionadded:: 2.3
-        """
-        return (None, None)
-
-
-class InteractiveQuery(object):
+class InteractiveQuery (object):
     """
     A query (set of prompts) for a user during interactive authentication.
     """
-
-    def __init__(self, name="", instructions="", *prompts):
+    
+    def __init__(self, name='', instructions='', *prompts):
         """
         Create a new interactive query to send to the client.  The name and
         instructions are optional, but are generally displayed to the end
         user.  A list of prompts may be included, or they may be added via
         the `add_prompt` method.
-
+        
         :param str name: name of this query
         :param str instructions:
             user instructions (usually short) about this query
@@ -619,12 +588,12 @@ class InteractiveQuery(object):
                 self.add_prompt(x)
             else:
                 self.add_prompt(x[0], x[1])
-
+    
     def add_prompt(self, prompt, echo=True):
         """
         Add a prompt to this query.  The prompt should be a (reasonably short)
         string.  Multiple prompts can be added to the same query.
-
+        
         :param str prompt: the user prompt
         :param bool echo:
             ``True`` (default) if the user's response should be echoed;
@@ -633,7 +602,7 @@ class InteractiveQuery(object):
         self.prompts.append((prompt, echo))
 
 
-class SubsystemHandler(threading.Thread):
+class SubsystemHandler (threading.Thread):
     """
     Handler for a subsytem in server mode.  If you create a subclass of this
     class and pass it to `.Transport.set_subsystem_handler`, an object of this
@@ -647,17 +616,15 @@ class SubsystemHandler(threading.Thread):
     ``MP3Handler`` will be created, and `start_subsystem` will be called on
     it from a new thread.
     """
-
     def __init__(self, channel, name, server):
         """
         Create a new handler for a channel.  This is used by `.ServerInterface`
         to start up a new handler when a channel requests this subsystem.  You
         don't need to override this method, but if you do, be sure to pass the
-        ``channel`` and ``name`` parameters through to the original
-        ``__init__`` method here.
+        ``channel`` and ``name`` parameters through to the original ``__init__``
+        method here.
 
-        :param .Channel channel: the channel associated with this
-            subsystem request.
+        :param .Channel channel: the channel associated with this subsystem request.
         :param str name: name of the requested subsystem.
         :param .ServerInterface server:
             the server object for the session that started this subsystem
@@ -667,7 +634,7 @@ class SubsystemHandler(threading.Thread):
         self.__transport = channel.get_transport()
         self.__name = name
         self.__server = server
-
+        
     def get_server(self):
         """
         Return the `.ServerInterface` object associated with this channel and
@@ -677,17 +644,11 @@ class SubsystemHandler(threading.Thread):
 
     def _run(self):
         try:
-            self.__transport._log(
-                DEBUG, "Starting handler for subsystem {}".format(self.__name)
-            )
+            self.__transport._log(DEBUG, 'Starting handler for subsystem %s' % self.__name)
             self.start_subsystem(self.__name, self.__transport, self.__channel)
         except Exception as e:
-            self.__transport._log(
-                ERROR,
-                'Exception in subsystem handler for "{}": {}'.format(
-                    self.__name, e
-                ),
-            )
+            self.__transport._log(ERROR, 'Exception in subsystem handler for "%s": %s' %
+                                  (self.__name, str(e)))
             self.__transport._log(ERROR, util.tb_strings())
         try:
             self.finish_subsystem()
@@ -702,8 +663,8 @@ class SubsystemHandler(threading.Thread):
         subsystem is finished, this method will return.  After this method
         returns, the channel is closed.
 
-        The combination of ``transport`` and ``channel`` are unique; this
-        handler corresponds to exactly one `.Channel` on one `.Transport`.
+        The combination of ``transport`` and ``channel`` are unique; this handler
+        corresponds to exactly one `.Channel` on one `.Transport`.
 
         .. note::
             It is the responsibility of this method to exit if the underlying
@@ -715,8 +676,7 @@ class SubsystemHandler(threading.Thread):
 
         :param str name: name of the requested subsystem.
         :param .Transport transport: the server-mode `.Transport`.
-        :param .Channel channel: the channel associated with this subsystem
-            request.
+        :param .Channel channel: the channel associated with this subsystem request.
         """
         pass
 

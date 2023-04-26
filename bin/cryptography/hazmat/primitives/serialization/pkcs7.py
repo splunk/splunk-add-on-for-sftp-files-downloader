@@ -2,88 +2,41 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
-import typing
+from __future__ import absolute_import, division, print_function
 
-from cryptography import utils
+from enum import Enum
+
 from cryptography import x509
+from cryptography.hazmat.backends import _get_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.utils import _check_byteslike
 
 
-def load_pem_pkcs7_certificates(data: bytes) -> typing.List[x509.Certificate]:
-    from cryptography.hazmat.backends.openssl.backend import backend
-
+def load_pem_pkcs7_certificates(data):
+    backend = _get_backend(None)
     return backend.load_pem_pkcs7_certificates(data)
 
 
-def load_der_pkcs7_certificates(data: bytes) -> typing.List[x509.Certificate]:
-    from cryptography.hazmat.backends.openssl.backend import backend
-
+def load_der_pkcs7_certificates(data):
+    backend = _get_backend(None)
     return backend.load_der_pkcs7_certificates(data)
 
 
-def serialize_certificates(
-    certs: typing.List[x509.Certificate],
-    encoding: serialization.Encoding,
-) -> bytes:
-    from cryptography.hazmat.backends.openssl.backend import backend
-
-    return backend.pkcs7_serialize_certificates(certs, encoding)
-
-
-_ALLOWED_PKCS7_HASH_TYPES = typing.Union[
-    hashes.SHA1,
-    hashes.SHA224,
-    hashes.SHA256,
-    hashes.SHA384,
-    hashes.SHA512,
-]
-
-_ALLOWED_PRIVATE_KEY_TYPES = typing.Union[
-    rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey
-]
-
-
-class PKCS7Options(utils.Enum):
-    Text = "Add text/plain MIME type"
-    Binary = "Don't translate input data into canonical MIME format"
-    DetachedSignature = "Don't embed data in the PKCS7 structure"
-    NoCapabilities = "Don't embed SMIME capabilities"
-    NoAttributes = "Don't embed authenticatedAttributes"
-    NoCerts = "Don't embed signer certificate"
-
-
-class PKCS7SignatureBuilder:
-    def __init__(
-        self,
-        data: typing.Optional[bytes] = None,
-        signers: typing.List[
-            typing.Tuple[
-                x509.Certificate,
-                _ALLOWED_PRIVATE_KEY_TYPES,
-                _ALLOWED_PKCS7_HASH_TYPES,
-            ]
-        ] = [],
-        additional_certs: typing.List[x509.Certificate] = [],
-    ):
+class PKCS7SignatureBuilder(object):
+    def __init__(self, data=None, signers=[], additional_certs=[]):
         self._data = data
         self._signers = signers
         self._additional_certs = additional_certs
 
-    def set_data(self, data: bytes) -> "PKCS7SignatureBuilder":
+    def set_data(self, data):
         _check_byteslike("data", data)
         if self._data is not None:
             raise ValueError("data may only be set once")
 
         return PKCS7SignatureBuilder(data, self._signers)
 
-    def add_signer(
-        self,
-        certificate: x509.Certificate,
-        private_key: _ALLOWED_PRIVATE_KEY_TYPES,
-        hash_algorithm: _ALLOWED_PKCS7_HASH_TYPES,
-    ) -> "PKCS7SignatureBuilder":
+    def add_signer(self, certificate, private_key, hash_algorithm):
         if not isinstance(
             hash_algorithm,
             (
@@ -111,9 +64,7 @@ class PKCS7SignatureBuilder:
             self._signers + [(certificate, private_key, hash_algorithm)],
         )
 
-    def add_certificate(
-        self, certificate: x509.Certificate
-    ) -> "PKCS7SignatureBuilder":
+    def add_certificate(self, certificate):
         if not isinstance(certificate, x509.Certificate):
             raise TypeError("certificate must be a x509.Certificate")
 
@@ -121,12 +72,7 @@ class PKCS7SignatureBuilder:
             self._data, self._signers, self._additional_certs + [certificate]
         )
 
-    def sign(
-        self,
-        encoding: serialization.Encoding,
-        options: typing.Iterable[PKCS7Options],
-        backend: typing.Any = None,
-    ) -> bytes:
+    def sign(self, encoding, options, backend=None):
         if len(self._signers) == 0:
             raise ValueError("Must have at least one signer")
         if self._data is None:
@@ -173,8 +119,14 @@ class PKCS7SignatureBuilder:
                 "both values."
             )
 
-        from cryptography.hazmat.backends.openssl.backend import (
-            backend as ossl,
-        )
+        backend = _get_backend(backend)
+        return backend.pkcs7_sign(self, encoding, options)
 
-        return ossl.pkcs7_sign(self, encoding, options)
+
+class PKCS7Options(Enum):
+    Text = "Add text/plain MIME type"
+    Binary = "Don't translate input data into canonical MIME format"
+    DetachedSignature = "Don't embed data in the PKCS7 structure"
+    NoCapabilities = "Don't embed SMIME capabilities"
+    NoAttributes = "Don't embed authenticatedAttributes"
+    NoCerts = "Don't embed signer certificate"

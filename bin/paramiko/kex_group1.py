@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Paramiko; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA.
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA.
 
 """
 Standard SSH key exchange ("kex" if you wanna sound cool).  Diffie-Hellman of
@@ -41,10 +41,10 @@ b0000000000000000 = zero_byte * 8
 class KexGroup1(object):
 
     # draft-ietf-secsh-transport-09.txt, page 17
-    P = 0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF  # noqa
+    P = 0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF
     G = 2
 
-    name = "diffie-hellman-group1-sha1"
+    name = 'diffie-hellman-group1-sha1'
     hash_algo = sha1
 
     def __init__(self, transport):
@@ -73,25 +73,21 @@ class KexGroup1(object):
             return self._parse_kexdh_init(m)
         elif not self.transport.server_mode and (ptype == _MSG_KEXDH_REPLY):
             return self._parse_kexdh_reply(m)
-        msg = "KexGroup1 asked to handle packet type {:d}"
-        raise SSHException(msg.format(ptype))
+        raise SSHException('KexGroup1 asked to handle packet type %d' % ptype)
 
-    # ...internals...
+    ###  internals...
 
     def _generate_x(self):
         # generate an "x" (1 < x < q), where q is (p-1)/2.
-        # p is a 128-byte (1024-bit) number, where the first 64 bits are 1.
+        # p is a 128-byte (1024-bit) number, where the first 64 bits are 1. 
         # therefore q can be approximated as a 2^1023.  we drop the subset of
-        # potential x where the first 63 bits are 1, because some of those
-        # will be larger than q (but this is a tiny tiny subset of
-        # potential x).
+        # potential x where the first 63 bits are 1, because some of those will be
+        # larger than q (but this is a tiny tiny subset of potential x).
         while 1:
             x_bytes = os.urandom(128)
             x_bytes = byte_mask(x_bytes[0], 0x7f) + x_bytes[1:]
-            if (
-                x_bytes[:8] != b7fffffffffffffff
-                and x_bytes[:8] != b0000000000000000
-            ):
+            if (x_bytes[:8] != b7fffffffffffffff and
+                    x_bytes[:8] != b0000000000000000):
                 break
         self.x = util.inflate_long(x_bytes)
 
@@ -103,20 +99,15 @@ class KexGroup1(object):
             raise SSHException('Server kex "f" is out of range')
         sig = m.get_binary()
         K = pow(self.f, self.x, self.P)
-        # okay, build up the hash H of
-        # (V_C || V_S || I_C || I_S || K_S || e || f || K)
+        # okay, build up the hash H of (V_C || V_S || I_C || I_S || K_S || e || f || K)
         hm = Message()
-        hm.add(
-            self.transport.local_version,
-            self.transport.remote_version,
-            self.transport.local_kex_init,
-            self.transport.remote_kex_init,
-        )
+        hm.add(self.transport.local_version, self.transport.remote_version,
+               self.transport.local_kex_init, self.transport.remote_kex_init)
         hm.add_string(host_key)
         hm.add_mpint(self.e)
         hm.add_mpint(self.f)
         hm.add_mpint(K)
-        self.transport._set_K_H(K, self.hash_algo(hm.asbytes()).digest())
+        self.transport._set_K_H(K, sha1(hm.asbytes()).digest())
         self.transport._verify_key(host_key, sig)
         self.transport._activate_outbound()
 
@@ -127,25 +118,18 @@ class KexGroup1(object):
             raise SSHException('Client kex "e" is out of range')
         K = pow(self.e, self.x, self.P)
         key = self.transport.get_server_key().asbytes()
-        # okay, build up the hash H of
-        # (V_C || V_S || I_C || I_S || K_S || e || f || K)
+        # okay, build up the hash H of (V_C || V_S || I_C || I_S || K_S || e || f || K)
         hm = Message()
-        hm.add(
-            self.transport.remote_version,
-            self.transport.local_version,
-            self.transport.remote_kex_init,
-            self.transport.local_kex_init,
-        )
+        hm.add(self.transport.remote_version, self.transport.local_version,
+               self.transport.remote_kex_init, self.transport.local_kex_init)
         hm.add_string(key)
         hm.add_mpint(self.e)
         hm.add_mpint(self.f)
         hm.add_mpint(K)
-        H = self.hash_algo(hm.asbytes()).digest()
+        H = sha1(hm.asbytes()).digest()
         self.transport._set_K_H(K, H)
         # sign it
-        sig = self.transport.get_server_key().sign_ssh_data(
-            H, self.transport.host_key_type
-        )
+        sig = self.transport.get_server_key().sign_ssh_data(H)
         # send reply
         m = Message()
         m.add_byte(c_MSG_KEXDH_REPLY)

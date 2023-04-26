@@ -14,20 +14,19 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Paramiko; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA.
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA.
 
 """
 RSA keys.
 """
 
-from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 
 from paramiko.message import Message
 from paramiko.pkey import PKey
-from paramiko.py3compat import PY2
 from paramiko.ssh_exception import SSHException
 
 
@@ -37,26 +36,8 @@ class RSAKey(PKey):
     data.
     """
 
-    HASHES = {
-        "ssh-rsa": hashes.SHA1,
-        "ssh-rsa-cert-v01@openssh.com": hashes.SHA1,
-        "rsa-sha2-256": hashes.SHA256,
-        "rsa-sha2-256-cert-v01@openssh.com": hashes.SHA256,
-        "rsa-sha2-512": hashes.SHA512,
-        "rsa-sha2-512-cert-v01@openssh.com": hashes.SHA512,
-    }
-
-    def __init__(
-        self,
-        msg=None,
-        data=None,
-        filename=None,
-        password=None,
-        key=None,
-        file_obj=None,
-    ):
+    def __init__(self, msg=None, data=None, filename=None, password=None, key=None, file_obj=None):
         self.key = None
-        self.public_blob = None
         if file_obj is not None:
             self._from_private_key(file_obj, password)
             return
@@ -68,13 +49,10 @@ class RSAKey(PKey):
         if key is not None:
             self.key = key
         else:
-            self._check_type_and_load_cert(
-                msg=msg,
-                # NOTE: this does NOT change when using rsa2 signatures; it's
-                # purely about key loading, not exchange or verification
-                key_type="ssh-rsa",
-                cert_type="ssh-rsa-cert-v01@openssh.com",
-            )
+            if msg is None:
+                raise SSHException('Key object may not be empty')
+            if msg.get_text() != 'ssh-rsa':
+                raise SSHException('Invalid key')
             self.key = rsa.RSAPublicNumbers(
                 e=msg.get_mpint(), n=msg.get_mpint()
             ).public_key(default_backend())
@@ -92,29 +70,22 @@ class RSAKey(PKey):
 
     def asbytes(self):
         m = Message()
-        m.add_string("ssh-rsa")
+        m.add_string('ssh-rsa')
         m.add_mpint(self.public_numbers.e)
         m.add_mpint(self.public_numbers.n)
         return m.asbytes()
 
     def __str__(self):
-        # NOTE: as per inane commentary in #853, this appears to be the least
-        # crummy way to get a representation that prints identical to Python
-        # 2's previous behavior, on both interpreters.
-        # TODO: replace with a nice clean fingerprint display or something
-        if PY2:
-            # Can't just return the .decode below for Py2 because stuff still
-            # tries stuffing it into ASCII for whatever godforsaken reason
-            return self.asbytes()
-        else:
-            return self.asbytes().decode("utf8", errors="ignore")
+        return self.asbytes()
 
-    @property
-    def _fields(self):
-        return (self.get_name(), self.public_numbers.e, self.public_numbers.n)
+    def __hash__(self):
+        h = hash(self.get_name())
+        h = h * 37 + hash(self.public_numbers.e)
+        h = h * 37 + hash(self.public_numbers.n)
+        return hash(h)
 
     def get_name(self):
-        return "ssh-rsa"
+        return 'ssh-rsa'
 
     def get_bits(self):
         return self.size
@@ -122,36 +93,34 @@ class RSAKey(PKey):
     def can_sign(self):
         return isinstance(self.key, rsa.RSAPrivateKey)
 
-    def sign_ssh_data(self, data, algorithm="ssh-rsa"):
-        sig = self.key.sign(
-            data,
+    def sign_ssh_data(self, data):
+        signer = self.key.signer(
             padding=padding.PKCS1v15(),
-            algorithm=self.HASHES[algorithm](),
+            algorithm=hashes.SHA1(),
         )
+        signer.update(data)
+        sig = signer.finalize()
+
         m = Message()
-        m.add_string(algorithm.replace("-cert-v01@openssh.com", ""))
+        m.add_string('ssh-rsa')
         m.add_string(sig)
         return m
 
     def verify_ssh_sig(self, data, msg):
-        sig_algorithm = msg.get_text()
-        if sig_algorithm not in self.HASHES:
+        if msg.get_text() != 'ssh-rsa':
             return False
         key = self.key
         if isinstance(key, rsa.RSAPrivateKey):
             key = key.public_key()
 
-        # NOTE: pad received signature with leading zeros, key.verify()
-        # expects a signature of key size (e.g. PuTTY doesn't pad)
-        sign = msg.get_binary()
-        diff = key.key_size - len(sign) * 8
-        if diff > 0:
-            sign = b"\x00" * ((diff + 7) // 8) + sign
-
+        verifier = key.verifier(
+            signature=msg.get_binary(),
+            padding=padding.PKCS1v15(),
+            algorithm=hashes.SHA1(),
+        )
+        verifier.update(data)
         try:
-            key.verify(
-                sign, data, padding.PKCS1v15(), self.HASHES[sig_algorithm]()
-            )
+            verifier.verify()
         except InvalidSignature:
             return False
         else:
@@ -162,7 +131,7 @@ class RSAKey(PKey):
             filename,
             self.key,
             serialization.PrivateFormat.TraditionalOpenSSL,
-            password=password,
+            password=password
         )
 
     def write_private_key(self, file_obj, password=None):
@@ -170,7 +139,7 @@ class RSAKey(PKey):
             file_obj,
             self.key,
             serialization.PrivateFormat.TraditionalOpenSSL,
-            password=password,
+            password=password
         )
 
     @staticmethod
@@ -180,7 +149,7 @@ class RSAKey(PKey):
         generate a new host key or authentication key.
 
         :param int bits: number of bits the generated key should be.
-        :param progress_func: Unused
+        :param function progress_func: Unused
         :return: new `.RSAKey` private key
         """
         key = rsa.generate_private_key(
@@ -188,38 +157,23 @@ class RSAKey(PKey):
         )
         return RSAKey(key=key)
 
-    # ...internals...
+    ###  internals...
 
     def _from_private_key_file(self, filename, password):
-        data = self._read_private_key_file("RSA", filename, password)
+        data = self._read_private_key_file('RSA', filename, password)
         self._decode_key(data)
 
     def _from_private_key(self, file_obj, password):
-        data = self._read_private_key("RSA", file_obj, password)
+        data = self._read_private_key('RSA', file_obj, password)
         self._decode_key(data)
 
     def _decode_key(self, data):
-        pkformat, data = data
-        if pkformat == self._PRIVATE_KEY_FORMAT_ORIGINAL:
-            try:
-                key = serialization.load_der_private_key(
-                    data, password=None, backend=default_backend()
-                )
-            except (ValueError, TypeError, UnsupportedAlgorithm) as e:
-                raise SSHException(str(e))
-        elif pkformat == self._PRIVATE_KEY_FORMAT_OPENSSH:
-            n, e, d, iqmp, p, q = self._uint32_cstruct_unpack(data, "iiiiii")
-            public_numbers = rsa.RSAPublicNumbers(e=e, n=n)
-            key = rsa.RSAPrivateNumbers(
-                p=p,
-                q=q,
-                d=d,
-                dmp1=d % (p - 1),
-                dmq1=d % (q - 1),
-                iqmp=iqmp,
-                public_numbers=public_numbers,
-            ).private_key(default_backend())
-        else:
-            self._got_bad_key_format_id(pkformat)
+        try:
+            key = serialization.load_der_private_key(
+                data, password=None, backend=default_backend()
+            )
+        except ValueError as e:
+            raise SSHException(str(e))
+
         assert isinstance(key, rsa.RSAPrivateKey)
         self.key = key

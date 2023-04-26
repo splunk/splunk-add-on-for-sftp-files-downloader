@@ -2,8 +2,10 @@
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
 
-import typing
+from __future__ import absolute_import, division, print_function
 
+
+from cryptography import utils
 from cryptography.exceptions import (
     InvalidSignature,
     UnsupportedAlgorithm,
@@ -12,18 +14,9 @@ from cryptography.exceptions import (
 from cryptography.hazmat.primitives import constant_time
 from cryptography.hazmat.primitives.ciphers.modes import CBC
 
-if typing.TYPE_CHECKING:
-    from cryptography.hazmat.primitives import ciphers
-    from cryptography.hazmat.backends.openssl.backend import Backend
 
-
-class _CMACContext:
-    def __init__(
-        self,
-        backend: "Backend",
-        algorithm: "ciphers.BlockCipherAlgorithm",
-        ctx=None,
-    ) -> None:
+class _CMACContext(object):
+    def __init__(self, backend, algorithm, ctx=None):
         if not backend.cmac_algorithm_supported(algorithm):
             raise UnsupportedAlgorithm(
                 "This backend does not support CMAC.",
@@ -58,11 +51,13 @@ class _CMACContext:
 
         self._ctx = ctx
 
-    def update(self, data: bytes) -> None:
+    algorithm = utils.read_only_property("_algorithm")
+
+    def update(self, data):
         res = self._backend._lib.CMAC_Update(self._ctx, data, len(data))
         self._backend.openssl_assert(res == 1)
 
-    def finalize(self) -> bytes:
+    def finalize(self):
         buf = self._backend._ffi.new("unsigned char[]", self._output_length)
         length = self._backend._ffi.new("size_t *", self._output_length)
         res = self._backend._lib.CMAC_Final(self._ctx, buf, length)
@@ -72,7 +67,7 @@ class _CMACContext:
 
         return self._backend._ffi.buffer(buf)[:]
 
-    def copy(self) -> "_CMACContext":
+    def copy(self):
         copied_ctx = self._backend._lib.CMAC_CTX_new()
         copied_ctx = self._backend._ffi.gc(
             copied_ctx, self._backend._lib.CMAC_CTX_free
@@ -81,7 +76,7 @@ class _CMACContext:
         self._backend.openssl_assert(res == 1)
         return _CMACContext(self._backend, self._algorithm, ctx=copied_ctx)
 
-    def verify(self, signature: bytes) -> None:
+    def verify(self, signature):
         digest = self.finalize()
         if not constant_time.bytes_eq(digest, signature):
             raise InvalidSignature("Signature did not match digest.")

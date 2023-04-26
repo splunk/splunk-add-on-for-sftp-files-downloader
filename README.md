@@ -57,7 +57,9 @@ username = sftp_user1
 
 ### Installation Instructions
 
-This Add-on can be installed in **Splunk Enterprise** only.
+- This Add-on can be installed in **Splunk Enterprise** only. (tested on Splunk v8.2.5 and v9.0)
+- This branch is for **Windows** only. (tested on windows server 2022 with cygwin64 installed) For Linux, please use the main branch.
+- Please make sure the app folder name is `TA-sftp-files-downloader` (e.g. /opt/splunk/etc/apps/TA-sftp-files-downloader)
 
 ## Credits & Acknowledgements
 
