@@ -1,6 +1,6 @@
-# SFTP files downloader Add-On for Splunk
+# Splunkworks Add-On for SFTP files downloader
 
-> The **SFTP files downloader Add-On for Splunk** uses paramiko as a client to connect to an SFTP server and download files to your Splunk instance.
+> The **Splunkworks Add-On for SFTP files downloader** uses paramiko as a client to connect to an SFTP server and download files to your Splunk instance.
 
 > NOTE: You will have to configure input stanza(s) to ingest your log files
 > that were downloaded with this TA. We recommend using the batch input method
@@ -55,10 +55,10 @@ username = sftp_user1
 [0.0.0.0]:22 ssh-rsa ...........
 ```
 
-
 ### Sample conf files for importing the downloaded csv to Splunk
 
 ## inputs.conf
+
 ```
 [batch://$SPLUNK_HOME/etc/apps/your destination file path/*.csv]
 index = itd_mecm_hardware_1
@@ -67,6 +67,7 @@ sourcetype = log:csv
 ```
 
 ## props.conf
+
 ```
 [log:csv]
 FIELD_DELIMITER = ,
@@ -84,19 +85,14 @@ TZ = US/Pacific
 - This Add-on can be installed in **Splunk Enterprise** only. (tested on Splunk v8.2.5 and v9.0)
 - This branch is for **Linux** only. For Windows, please use the `windows` branch.
 - Please make sure the app folder name is `TA-sftp-files-downloader` (e.g. /opt/splunk/etc/apps/TA-sftp-files-downloader)
-- if you see this error: "from cryptography.hazmat.bindings._openssl import ffi, lib ModuleNotFoundError: No module named 'cryptography.hazmat. bindings._openssl', try the following command:
+- if you see this error: "from cryptography.hazmat.bindings.\_openssl import ffi, lib ModuleNotFoundError: No module named 'cryptography.hazmat. bindings.\_openssl', try the following command:
 
 ```
 pip uninstall pyopenssl
 pip install pyopenssl==21.0.0
 ```
 
-
 ## Credits & Acknowledgements
 
 - Guo Huang
 - Man Pham
-
-## Support
-
-Find us in splunk-usergroups.slack.com
