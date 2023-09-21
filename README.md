@@ -1,6 +1,6 @@
-# Splunkworks Add-On for SFTP files downloader
+# Splunk Add-On for SFTP files downloader
 
-> The **Splunkworks Add-On for SFTP files downloader** uses paramiko as a client to connect to an SFTP server and download files to your Splunk instance.
+> The **Splunk Add-On for SFTP files downloader** uses paramiko as a client to connect to an SFTP server and download files to your Splunk instance.
 
 > NOTE: You will have to configure input stanza(s) to ingest your log files
 > that were downloaded with this TA. We recommend using the batch input method
