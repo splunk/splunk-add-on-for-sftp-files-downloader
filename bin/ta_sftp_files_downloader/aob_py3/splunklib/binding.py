@@ -1375,7 +1375,10 @@ def handler(key_file=None, cert_file=None, timeout=None, verify=False):
             if cert_file is not None: kwargs['cert_file'] = cert_file
 
             if not verify:
-                kwargs['context'] = ssl._create_unverified_context()
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                kwargs['context'] = context
             return six.moves.http_client.HTTPSConnection(host, port, **kwargs)
         raise ValueError("unsupported scheme: %s" % scheme)
 
