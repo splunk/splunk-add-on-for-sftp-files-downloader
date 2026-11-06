@@ -23,7 +23,7 @@ class DecoderProtocol(Protocol):
 
     def consume_bytes(self, data: bytes, chunk_size: int = 64 << 10) -> bytes:
         out = bytearray()
-        if chunk_size == 0:
+        if chunk_size <= 0:
             chunk_size = len(data)
         for i in range(0, len(data), chunk_size):
             chunk = data[i : i + chunk_size]
@@ -97,8 +97,8 @@ class LimitDecoder(DecoderProtocol):
     ) -> None:
         if ratio < 0:
             raise ValueError(f"LimitDecoder() ratio={ratio} expected >= 0")
-        if chunk_size < 0:
-            raise ValueError(f"LimitDecoder() chunk_size={chunk_size} expected >= 0")
+        if chunk_size <= 0:
+            raise ValueError(f"LimitDecoder() chunk_size={chunk_size} expected > 0")
         if safe_limit < 0:
             raise ValueError(f"LimitDecoder() safe_limit={safe_limit} expected >= 0")
         if hard_limit < 0:
