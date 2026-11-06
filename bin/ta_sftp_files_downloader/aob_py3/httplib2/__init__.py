@@ -26,6 +26,7 @@ from email import header
 import email.message
 import email.utils
 import errno
+import functools
 from gettext import gettext as _
 import gzip
 from hashlib import md5 as _md5
@@ -42,6 +43,8 @@ import sys
 import time
 import urllib.parse
 import zlib
+
+from httplib2.decode import DeflateDecoder, LimitDecoder, ZlibDecoder
 
 try:
     import socks
@@ -349,27 +352,41 @@ def _entry_disposition(response_headers, request_headers):
     return retval
 
 
-def _decompressContent(response, new_content):
+def _decompressContent(response, new_content, limit_kwargs):
     content = new_content
+    encoding_header = "content-encoding"
+    encoding = response.get(encoding_header, None)
+    limit_wrap = functools.partial(LimitDecoder, **limit_kwargs)
     try:
-        encoding = response.get("content-encoding", None)
-        if encoding in ["gzip", "deflate"]:
-            if encoding == "gzip":
-                content = gzip.GzipFile(fileobj=io.BytesIO(new_content)).read()
-            if encoding == "deflate":
-                content = zlib.decompress(content, -zlib.MAX_WBITS)
+        if encoding in ["gzip", "deflate", "zlib"]:
+            try:
+                content = limit_wrap(ZlibDecoder()).consume_bytes(new_content, 0)
+            except (IOError, zlib.error):
+                content = limit_wrap(DeflateDecoder()).consume_bytes(new_content, 0)
             response["content-length"] = str(len(content))
             # Record the historical presence of the encoding in a way the won't interfere.
-            response["-content-encoding"] = response["content-encoding"]
-            del response["content-encoding"]
+            response["-content-encoding"] = response.pop(encoding_header)
     except (IOError, zlib.error):
         content = ""
         raise FailedToDecompressContent(
-            _("Content purported to be compressed with %s but failed to decompress.") % response.get("content-encoding"),
+            _("Content purported to be compressed with %s but failed to decompress.")
+            % encoding,
             response,
             content,
         )
     return content
+
+
+def try_value_or_env(to, value, env_key, default=None):
+    candidates = (value, os.environ.get(env_key), os.environ.get(env_key.upper()))
+    for x in candidates:
+        if x is None:
+            continue
+        try:
+            return to(x)
+        except ValueError:
+            pass
+    return default
 
 
 def _bind_write_headers(msg):
@@ -1212,6 +1229,10 @@ class Http(object):
         disable_ssl_certificate_validation=False,
         tls_maximum_version=None,
         tls_minimum_version=None,
+        decode_limit_hard=None,
+        decode_limit_safe=None,
+        decode_limit_ratio=None,
+        decode_limit_chunk=None,
     ):
         """If 'cache' is a string then it is used as a directory name for
         a disk cache. Otherwise it must be an object that supports the
@@ -1244,6 +1265,21 @@ class Http(object):
         self.disable_ssl_certificate_validation = disable_ssl_certificate_validation
         self.tls_maximum_version = tls_maximum_version
         self.tls_minimum_version = tls_minimum_version
+        limit_kwargs = dict(
+            hard_limit=try_value_or_env(
+                int, decode_limit_hard, "httplib2_decode_limit_hard"
+            ),
+            safe_limit=try_value_or_env(
+                int, decode_limit_safe, "httplib2_decode_limit_safe"
+            ),
+            ratio=try_value_or_env(
+                float, decode_limit_ratio, "httplib2_decode_limit_ratio"
+            ),
+            chunk_size=try_value_or_env(
+                int, decode_limit_chunk, "httplib2_decode_limit_chunk"
+            ),
+        )
+        self.limit_kwargs = {k: v for k, v in limit_kwargs.items() if v is not None}
         # Map domain name to an httplib connection
         self.connections = {}
         # The location of the cache, for now a directory
@@ -1405,7 +1441,7 @@ class Http(object):
                     content = response.read()
                 response = Response(response)
                 if method != "HEAD":
-                    content = _decompressContent(response, content)
+                    content = _decompressContent(response, content, self.limit_kwargs)
 
             break
         return (response, content)
